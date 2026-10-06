@@ -1,9 +1,9 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 
-// In dev, /api is proxied to the super-muse backend (separate repo),
+// In dev, /api is proxied to the vyber backend (separate repo),
 // so the browser sees one origin. In production, set VITE_API_URL to the
-// API's origin and add that origin to the API's SUPER_CORS_ORIGINS.
+// API's origin and add that origin to the API's VYBER_CORS_ORIGINS.
 const proxy = {
   "/api": "http://localhost:8091",
   "/healthz": "http://localhost:8091",

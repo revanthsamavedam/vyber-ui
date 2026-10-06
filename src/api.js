@@ -1,4 +1,4 @@
-// API client for the super-muse backend (separate repo: super-muse).
+// API client for the vyber backend (separate repo: vyber).
 // Demo auth header stands in for the real SSO token the shell would inject.
 //
 // Chat is ASYNC on the backend: startChat() returns a run id immediately,

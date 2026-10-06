@@ -22,7 +22,7 @@ export default function App() {
           {
             role: "assistant",
             text:
-              "I'm Super Muse. One request is enough — I'll plan it, hand parts to my " +
+              "I'm Vyber. One request is enough — I'll plan it, hand parts to my " +
               "researcher / builder / data / writer specialists, and have a reviewer check " +
               "anything before it's written. The chat never locks: send more messages while " +
               "I work and they'll queue, and you can stop a run from its card.",
@@ -31,7 +31,7 @@ export default function App() {
       })
       .catch((e) =>
         setMessages([
-          { role: "assistant", text: `Can't reach the API (${e.message}). Is the super-muse backend running on :8091?` },
+          { role: "assistant", text: `Can't reach the API (${e.message}). Is the vyber backend running on :8091?` },
         ])
       );
   }, []);
@@ -109,7 +109,7 @@ export default function App() {
   return (
     <div className="shell">
       <header>
-        <strong>Super Muse</strong>
+        <strong>Vyber</strong>
         <span className="sub">
           One ask → a planner delegates to specialists → a reviewer gates anything written. Model: {model}
         </span>
