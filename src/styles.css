@@ -16,5 +16,16 @@ button { padding: .55rem 1rem; font-size: 1rem; cursor: pointer; }
 .side h3 { margin: .8rem 0 .4rem; font-size: .95rem; }
 .step { border-left: 3px solid #6c5ce7; padding: .3rem .6rem; margin: .35rem 0; background: #fff; font-size: .88rem; }
 .step .kind { color: #777; font-size: .78rem; }
+.run { border: 1px solid #e3e0d8; border-radius: .5rem; padding: .5rem .6rem; margin: .5rem 0; background: #fff; }
+.run-head { display: flex; gap: .5rem; align-items: center; }
+.run-prompt { font-weight: 600; font-size: .9rem; flex: 1; }
+.chip { font-size: .72rem; padding: .12rem .5rem; border-radius: 1rem; text-transform: uppercase; letter-spacing: .04em; background: #eee; }
+.chip.queued { background: #fdf0c2; }
+.chip.running { background: #cfe5ff; }
+.chip.done { background: #d3f2d8; }
+.chip.failed { background: #ffd6d6; }
+.chip.cancelled { background: #e2e2e2; color: #666; }
+.live { color: #2456a6; font-size: .85rem; margin: .35rem 0; }
+button.stop { font-size: .8rem; padding: .2rem .6rem; }
 pre { white-space: pre-wrap; font-size: .82rem; }
 @media (max-width: 800px) { main { grid-template-columns: 1fr; } }

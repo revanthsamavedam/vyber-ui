@@ -3,8 +3,11 @@
 The React UI for **Super Muse**. The backend (orchestrator, subagents,
 memory, API) lives in the separate repo
 [super-muse](https://github.com/revanthsamavedam/super-muse) — this repo
-is only the browser app: chat on the left, live agent trace / workspace
-files / review on the right.
+is only the browser app: chat on the left, and on the right a **live
+activity view**: every run is a card whose steps stream in over SSE as
+the planner delegates and subagents finish. The chat never locks —
+messages sent while a run is working queue up server-side, and each
+running card has a Stop button.
 
 ## Run it
 
