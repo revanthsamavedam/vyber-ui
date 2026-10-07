@@ -1,7 +1,28 @@
 import { useEffect, useRef, useState } from "react";
-import { cancelRun, createSession, startChat, streamRun } from "./api";
+import {
+  cancelRun,
+  createSession,
+  getRun,
+  getSession,
+  getSessionRuns,
+  startChat,
+  streamRun,
+} from "./api";
 
 const TERMINAL = ["done", "failed", "cancelled"];
+const SESSION_KEY = "vyber-session-id";
+const WELCOME = {
+  role: "assistant",
+  text:
+    "I'm Vyber. One request is enough — I'll plan it, hand parts to my " +
+    "researcher / builder / data / writer specialists, and have a reviewer check " +
+    "anything before it's written. The chat never locks: send more messages while " +
+    "I work and they'll queue, and you can stop a run from its card.",
+};
+
+function stepsFromEvents(events = []) {
+  return events.filter((e) => e.type === "step").map((e) => e.step);
+}
 
 export default function App() {
   const [sessionId, setSessionId] = useState(null);
@@ -12,28 +33,71 @@ export default function App() {
   const [review, setReview] = useState(null);
   const [input, setInput] = useState("");
   const logRef = useRef(null);
+  const initStarted = useRef(false);
+  const terminalHandled = useRef(new Set());
 
   useEffect(() => {
-    createSession()
-      .then((s) => {
-        setSessionId(s.session_id);
-        setModel(s.model);
-        setMessages([
-          {
-            role: "assistant",
-            text:
-              "I'm Vyber. One request is enough — I'll plan it, hand parts to my " +
-              "researcher / builder / data / writer specialists, and have a reviewer check " +
-              "anything before it's written. The chat never locks: send more messages while " +
-              "I work and they'll queue, and you can stop a run from its card.",
-          },
-        ]);
-      })
-      .catch((e) =>
+    if (initStarted.current) return;
+    initStarted.current = true;
+    (async () => {
+      try {
+        let session = null;
+        const saved = localStorage.getItem(SESSION_KEY);
+        if (saved) {
+          try {
+            session = await getSession(saved);
+            session.session_id = saved;
+          } catch {
+            localStorage.removeItem(SESSION_KEY);
+          }
+        }
+        if (!session) {
+          session = await createSession();
+          localStorage.setItem(SESSION_KEY, session.session_id);
+        }
+        setSessionId(session.session_id);
+        setModel(session.model);
+        setFiles(session.files || []);
+
+        const { runs: savedRuns } = await getSessionRuns(session.session_id);
+        if (!savedRuns.length) {
+          setMessages([WELCOME]);
+          return;
+        }
+        const restoredMessages = [];
+        const restoredRuns = savedRuns.map((run) => {
+          restoredMessages.push({ role: "user", text: run.prompt });
+          if (run.status === "done" && run.result) {
+            terminalHandled.current.add(run.run_id);
+            restoredMessages.push({ role: "assistant", text: run.result.summary });
+            setFiles(run.result.files || []);
+            setReview(run.result.review || null);
+          } else if (run.status === "failed") {
+            terminalHandled.current.add(run.run_id);
+            restoredMessages.push({
+              role: "assistant",
+              text: `Run failed: ${run.error || "unknown error"}`,
+            });
+          }
+          return {
+            id: run.run_id,
+            prompt: run.prompt,
+            status: run.status,
+            steps: stepsFromEvents(run.events),
+            live: "",
+          };
+        });
+        setMessages(restoredMessages);
+        setRuns(restoredRuns);
+        restoredRuns
+          .filter((r) => !TERMINAL.includes(r.status))
+          .forEach((r) => watchRun(r.id));
+      } catch (e) {
         setMessages([
           { role: "assistant", text: `Can't reach the API (${e.message}). Is the vyber backend running on :8091?` },
-        ])
-      );
+        ]);
+      }
+    })();
   }, []);
 
   useEffect(() => {
@@ -44,12 +108,57 @@ export default function App() {
     setRuns((rs) => rs.map((r) => (r.id === id ? { ...r, ...patch } : r)));
   }
 
+  function finishWithResult(runId, res) {
+    if (terminalHandled.current.has(runId)) return;
+    terminalHandled.current.add(runId);
+    patchRun(runId, { status: "done", live: "" });
+    setMessages((m) => [...m, { role: "assistant", text: res.summary }]);
+    setFiles(res.files || []);
+    setReview(res.review || null);
+  }
+
+  function finishWithError(runId, error) {
+    if (terminalHandled.current.has(runId)) return;
+    terminalHandled.current.add(runId);
+    patchRun(runId, { status: "failed", live: "" });
+    setMessages((m) => [...m, { role: "assistant", text: `Run failed: ${error}` }]);
+  }
+
+  async function pollRun(runId) {
+    for (let i = 0; i < 180; i++) {
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+      try {
+        const run = await getRun(runId);
+        patchRun(runId, {
+          status: run.status,
+          steps: stepsFromEvents(run.events),
+          live: "",
+        });
+        if (run.status === "done" && run.result) {
+          finishWithResult(runId, run.result);
+          return;
+        }
+        if (run.status === "failed") {
+          finishWithError(runId, run.error || "unknown error");
+          return;
+        }
+        if (run.status === "cancelled") {
+          terminalHandled.current.add(runId);
+          patchRun(runId, { status: "cancelled", live: "" });
+          return;
+        }
+      } catch {
+        // Keep polling through a brief API restart; the run is persisted.
+      }
+    }
+  }
+
   function watchRun(runId) {
     streamRun(runId, (event) => {
       if (event.type === "status") {
         patchRun(runId, { status: event.status });
+        if (event.status === "cancelled") terminalHandled.current.add(runId);
       } else if (event.type === "subagent.started") {
-        patchRun(runId, {});
         setRuns((rs) =>
           rs.map((r) =>
             r.id === runId
@@ -64,18 +173,12 @@ export default function App() {
           )
         );
       } else if (event.type === "result") {
-        const res = event.result;
-        patchRun(runId, { status: "done", live: "" });
-        setMessages((m) => [...m, { role: "assistant", text: res.summary }]);
-        setFiles(res.files || []);
-        setReview(res.review || null);
+        finishWithResult(runId, event.result);
       } else if (event.type === "error") {
-        patchRun(runId, { status: "failed", live: "" });
-        setMessages((m) => [...m, { role: "assistant", text: `Run failed: ${event.error}` }]);
+        finishWithError(runId, event.error);
       }
     }).catch(() => {
-      // Stream dropped — the run card's status may lag; a refresh of the
-      // page loses nothing server-side (runs and events persist there).
+      if (!terminalHandled.current.has(runId)) pollRun(runId);
     });
   }
 
@@ -101,6 +204,7 @@ export default function App() {
     try {
       const out = await cancelRun(runId);
       patchRun(runId, { status: out.status, live: "" });
+      if (out.status === "cancelled") terminalHandled.current.add(runId);
     } catch {
       /* run may have just finished — status will arrive via the stream */
     }

@@ -24,6 +24,16 @@ async function post(path, body) {
 export const createSession = (user = "alice") => post("/api/session", { user });
 export const startChat = (sessionId, message) =>
   post("/api/chat", { session_id: sessionId, message });
+
+async function get(path) {
+  const r = await fetch(`${BASE}${path}`, { headers: HEADERS });
+  if (!r.ok) throw new Error(`${path} -> ${r.status}`);
+  return r.json();
+}
+
+export const getSession = (sessionId) => get(`/api/session/${sessionId}`);
+export const getSessionRuns = (sessionId) =>
+  get(`/api/sessions/${sessionId}/runs`);
 export const cancelRun = (runId) => post(`/api/runs/${runId}/cancel`);
 
 export async function getRun(runId) {
